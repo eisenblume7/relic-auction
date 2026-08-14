@@ -1,29 +1,202 @@
 # Relic Auction
 
-Roblox/Luau prototype for a solo-first collectible auction game. This repository currently implements only **MVP v0.1 Phase 1–2** from the supplied development brief.
+A lightweight, solo-first Roblox collectible auction prototype built with **Luau**, **Rojo**, and **Roblox Studio**.
 
-## Implemented
+The player studies partially revealed auction lots, estimates their value under uncertainty, competes in round-based bidding, reveals won collectibles, and eventually uses those collectibles to build a passive-income collection.
 
-- Partially managed Rojo project with four reserved `RemoteEvent` instances.
-- Server-owned player session with configurable 2,000 starting Coins and `leaderstats.Coins`.
-- Six configurable rarity tiers and an original 17-item collectible catalog.
-- Server-side weighted generation of eight-item lots with three visible slots.
-- Starting bids derived from visible value using configurable rules.
-- Redacted client-safe lot previews plus complete server-only Studio Output logs.
+> **Current milestone:** MVP v0.1 Phase 1–2. The project foundation, player Coins, collectible catalog, rarity distribution, and server-authoritative lot generation are implemented. Auction bidding starts in Phase 3 and is intentionally not included yet.
 
-Auction bidding, NPCs, reveal, collection actions, and passive income are intentionally deferred to later phases.
+## Core loop
 
-See [`docs/PHASE-1-2.md`](docs/PHASE-1-2.md) for the implementation report, generated example lot, known tooling issue, and the required Studio play-test checklist.
+```text
+AUCTION LOT
+    ↓
+OBSERVE PARTIAL INFORMATION
+    ↓
+DECIDE VALUE
+    ↓
+BID AGAINST NPCs
+    ↓
+WIN / LOSE
+    ↓
+REVEAL ITEMS
+    ↓
+DISPLAY / SELL
+    ↓
+PASSIVE INCOME
+    ↓
+NEXT AUCTION
+```
+
+Only the foundation and lot-generation portions of this loop are currently implemented.
+
+## Current status
+
+| Phase | Scope | Status |
+|---|---|---|
+| Phase 1 | Rojo structure, remotes, player session, starting Coins | Implemented and automatically tested |
+| Phase 2 | Rarities, collectibles, weighted `LotGenerator`, redacted preview | Implemented, tested, and executed in Roblox Studio |
+| Phase 3 | Auction state machine and round-based bidding | Not started |
+| Phase 4+ | NPC bidders, winner resolution, reveal, collection, income | Not started |
+
+## Implemented features
+
+- Partially managed Rojo workflow.
+- Configurable starting balance of **2,000 Coins**.
+- Server-owned player session and `leaderstats.Coins`.
+- Four reserved `RemoteEvent` instances for future phases.
+- Six configurable rarity tiers:
+  - `COMMON`
+  - `RARE`
+  - `EPIC`
+  - `LEGENDARY`
+  - `MYTHICAL`
+  - `BIBLICAL`
+- Original 17-item collectible catalog.
+- Weighted rarity selection using configurable basis-point weights.
+- Exactly eight collectibles per generated lot.
+- Exactly three visible and five hidden slots.
+- Configurable starting-bid calculation based on visible value.
+- Client-safe preview generation that redacts hidden identities and true total value.
+- Complete server-only debug output for Studio testing.
+- Deterministic Lune harness for repeatable local verification.
+
+## Architecture
+
+```text
+src/
+├── client/
+│   └── README.md
+├── shared/
+│   ├── AuctionConfig.lua
+│   ├── Collectibles.lua
+│   ├── EconomyConfig.lua
+│   ├── LotGenerator.lua
+│   ├── Rarities.lua
+│   └── Types.lua
+└── server/
+    ├── Bootstrap.server.lua
+    ├── LotDebug.server.lua
+    ├── LotDebugFormatter.lua
+    └── PlayerSession.lua
+
+tests/
+├── lot_debug_formatter.spec.luau
+├── lot_generator.spec.luau
+└── player_session.spec.luau
+
+scripts/
+└── generate-example-lot.luau
+```
+
+### Ownership boundaries
+
+**Server owns:**
+
+- Coins and player session state;
+- complete generated lot contents;
+- hidden collectible identities;
+- true lot value;
+- rarity outcomes;
+- starting bid.
+
+**Client will own only:**
+
+- input;
+- UI presentation;
+- animation;
+- camera and local effects.
+
+No Phase 1–2 remote handler accepts client-controlled economic data.
 
 ## Toolchain
 
-Managed through [Rokit](https://github.com/rojo-rbx/rokit):
+- Roblox Studio
+- Luau
+- Rojo 7.7.0
+- Lune 0.10.5
+- StyLua 2.5.2
+- Selene 0.26.1 on Intel macOS
+- Git
+
+Tools are managed with [Rokit](https://github.com/rojo-rbx/rokit):
 
 ```bash
 rokit install
 ```
 
-## Verify Phase 1–2
+> Selene is pinned to `0.26.1` because newer macOS release artifacts tested during development were ARM64-only and could not run on the Intel development machine.
+
+## Getting started
+
+### 1. Install project tools
+
+```bash
+cd /Users/macbookair/Documents/project/relic-auction
+rokit install
+```
+
+### 2. Start Rojo
+
+```bash
+rojo serve default.project.json
+```
+
+Rojo serves on:
+
+```text
+localhost:34872
+```
+
+### 3. Connect Roblox Studio
+
+1. Launch Roblox Studio normally and wait for startup/plugin initialization to finish.
+2. Open or create a Baseplate place that owns the map and placeholder models.
+3. Open the Rojo Studio plugin.
+4. Connect to `localhost:34872`.
+5. Start a server play test.
+
+### 4. Verify Phase 1–2
+
+In Explorer, check:
+
+```text
+Player
+└── leaderstats
+    └── Coins = 2000
+```
+
+In Output, check for:
+
+```text
+[Relic Auction] Generated Phase 2 preview
+[Relic Auction] Generated Phase 2 server data
+```
+
+The preview must contain eight slots with three visible and five hidden entries. The server-only block must contain all eight collectible identities and the true value.
+
+## Verified Studio output
+
+The Phase 2 scripts have executed successfully in Roblox Studio. One observed generated lot produced:
+
+```text
+LOT LOT_001
+Starting Bid: 200
+Slot 1: ??? | HIDDEN
+Slot 2: ??? | HIDDEN
+Slot 3: Tideglass Chalice | RARE | VISIBLE
+Slot 4: ??? | HIDDEN
+Slot 5: Old Clay Vase | COMMON | VISIBLE
+Slot 6: ??? | HIDDEN
+Slot 7: Old Clay Vase | COMMON | VISIBLE
+Slot 8: ??? | HIDDEN
+```
+
+The corresponding server-only data contained all eight items and a true value of `775`. This confirms that Studio executes the generator, preserves slot positions, exposes exactly three collectibles, and retains hidden contents on the server.
+
+## Automated verification
+
+Run all Phase 1–2 checks:
 
 ```bash
 lune run tests/player_session.spec.luau
@@ -36,14 +209,67 @@ rojo build default.project.json --output build/RelicAuction.rbxlx
 lune run scripts/generate-example-lot.luau
 ```
 
-## Roblox Studio
+Expected result:
 
-> Manual Studio runtime verification is still pending. A cold automatic launch stalled in Studio's update/plugin startup, so launch Studio normally and wait until it is ready before following these steps.
+```text
+3 behavior specs pass
+Selene reports 0 errors and 0 warnings
+StyLua check passes
+Rojo build succeeds
+Generated preview has 8 slots, 3 visible, and 5 hidden
+```
 
-1. Open or create the Studio place that owns the map and placeholder models.
-2. From this directory run `rojo serve default.project.json`.
-3. Connect the Rojo Studio plugin to `localhost:34872`.
-4. Start a server play test.
-5. Verify the player receives `leaderstats.Coins = 2000` and Studio Output shows a redacted preview followed by clearly marked server-only complete lot data.
+## Configuration
 
-The source tree intentionally leaves map, placeholder model, and UI-preview ownership in Studio.
+Balancing values are kept outside gameplay logic:
+
+| File | Responsibility |
+|---|---|
+| `src/shared/EconomyConfig.lua` | Starting Coins |
+| `src/shared/AuctionConfig.lua` | Lot size, visible count, bid calculation, debug seed |
+| `src/shared/Rarities.lua` | Rarity names and weights |
+| `src/shared/Collectibles.lua` | Item names, rarity, value, income, category |
+
+Current rarity weights:
+
+| Rarity | Weight |
+|---|---:|
+| Common | 55% |
+| Rare | 25% |
+| Epic | 12% |
+| Legendary | 6% |
+| Mythical | 1.8% |
+| Biblical | 0.2% |
+
+## Development constraints
+
+The prototype intentionally avoids:
+
+- large frameworks;
+- per-frame economy loops;
+- unnecessary physics;
+- complex humanoid NPCs;
+- persistence and offline income;
+- monetization;
+- trading or multiplayer PvP auctions;
+- final UI, VFX, sound, meshes, or generated 3D assets.
+
+Roblox Studio remains responsible for the map, placeholder models, UI preview, and play testing. The filesystem remains responsible for scripts and configuration.
+
+## Next milestone: Phase 3
+
+Phase 3 will add only:
+
+- explicit auction state machine;
+- `IDLE → PREVIEW → BIDDING → RESOLVING` transitions required by the phase;
+- auction start action;
+- configurable three-round progression;
+- client-safe auction state payloads;
+- server validation for future `RAISE` and `PASS` requests.
+
+NPC bidder personalities remain Phase 4 and must not be pulled into Phase 3 prematurely.
+
+## Documentation
+
+- [`docs/PHASE-1-2.md`](docs/PHASE-1-2.md) — implementation report, verification evidence, generated lots, and known tooling notes.
+- The original development brief is kept as a local Hermes attachment and is intentionally excluded from Git.

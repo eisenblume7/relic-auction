@@ -4,7 +4,7 @@ Date: 2026-08-14
 
 ## Status
 
-Phase 1 and Phase 2 source implementation and automated verification are complete. Phase 3 has not started. A final Roblox Studio play test is pending because Studio stalled during cold startup when the generated place file was opened automatically.
+Phase 1 and Phase 2 source implementation and automated verification are complete. The Phase 2 server scripts have also executed successfully in Roblox Studio, producing an eight-slot preview with exactly three visible and five hidden entries plus complete server-only data. Phase 3 has not started.
 
 ## Files and responsibilities
 
@@ -60,6 +60,19 @@ Rojo build ................. PASS
 
 Build artifact: `build/RelicAuction.rbxlx` (ignored by Git and reproducible with Rojo).
 
+## Roblox Studio runtime evidence
+
+The user completed a Studio play test and supplied the server Output. The observed lot had:
+
+- starting bid `200`;
+- exactly 8 preview slots;
+- visible slots `3`, `5`, and `7`;
+- exactly 3 visible and 5 hidden entries;
+- complete server-only contents for all 8 slots;
+- true value `775`.
+
+The visible preview identities matched the corresponding server-only slot identities. Hidden identities appeared only in the server block.
+
 ## Generated example lot
 
 This is the actual output from `lune run scripts/generate-example-lot.luau` with debug seed `10824`:
@@ -94,24 +107,15 @@ The Studio `Random` implementation may produce a different deterministic sequenc
 ## Errors encountered
 
 1. Selene 0.31.0 installed an ARM64 macOS artifact on this Intel Mac and failed with `Bad CPU type in executable (os error 86)`. Investigation found 0.26.1 is the latest verified x86_64 artifact, so `rokit.toml` pins that version.
-2. Roblox Studio 0.734.0.7340915 remained in startup/plugin initialization for more than five minutes when the generated `.rbxlx` was opened during a cold launch. The Studio log did not show a project-script error. The process was closed, so manual runtime confirmation is still required.
+2. Roblox Studio 0.734.0.7340915 remained in startup/plugin initialization when the generated `.rbxlx` was opened during a cold automatic launch. Launching Studio normally and connecting through the intended Rojo workflow subsequently succeeded and produced valid server Output.
 
-## Manual Studio verification required
+## Remaining manual check
 
-1. Start Roblox Studio normally and wait until its update/plugin work is finished.
-2. Open a blank Baseplate place.
-3. Run `rojo serve default.project.json` from the repository.
-4. Connect the Rojo Studio plugin to `localhost:34872`.
-5. Press Play.
-6. Verify `leaderstats > Coins` is `2000` on the local player.
-7. Verify Output contains both `[Relic Auction] Generated Phase 2 preview` and `[Relic Auction] Generated Phase 2 server data`.
-8. Count 8 preview slots: 3 `VISIBLE`, 5 `HIDDEN`.
-9. Confirm no red project-script errors.
-10. Stop and repeat once.
+The supplied Output verifies Phase 2 runtime behavior. Before beginning Phase 3, visually confirm that the local player has `leaderstats > Coins = 2000`; the starting-balance behavior already passes its automated specification.
 
 ## Remaining for Phase 3
 
-After the Studio checklist passes:
+After the remaining Coins check:
 
 - explicit auction state machine;
 - IDLE → PREVIEW → BIDDING → RESOLVING transitions needed by the phase;
