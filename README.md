@@ -4,7 +4,7 @@ A lightweight, solo-first Roblox collectible auction prototype built with **Luau
 
 The player studies partially revealed auction lots, estimates their value under uncertainty, competes in round-based bidding, reveals won collectibles, and eventually uses those collectibles to build a passive-income collection.
 
-> **Current milestone:** MVP v0.1 Phase 1–2. The project foundation, player Coins, collectible catalog, rarity distribution, and server-authoritative lot generation are implemented. Auction bidding starts in Phase 3 and is intentionally not included yet.
+> **Current milestone:** MVP v0.1 Phase 3. The project now includes a server-authoritative auction state machine, preview, and three player bidding rounds. NPC bidders and winner resolution remain intentionally deferred.
 
 ## Core loop
 
@@ -28,7 +28,7 @@ PASSIVE INCOME
 NEXT AUCTION
 ```
 
-Only the foundation and lot-generation portions of this loop are currently implemented.
+The loop is implemented through the player's three round-based `RAISE`/`PASS` decisions. NPC competition, winner resolution, reveal, collection, and income remain later phases.
 
 ## Current status
 
@@ -36,7 +36,7 @@ Only the foundation and lot-generation portions of this loop are currently imple
 |---|---|---|
 | Phase 1 | Rojo structure, remotes, player session, starting Coins | Implemented and automatically tested |
 | Phase 2 | Rarities, collectibles, weighted `LotGenerator`, redacted preview | Implemented, tested, and executed in Roblox Studio |
-| Phase 3 | Auction state machine and round-based bidding | Not started |
+| Phase 3 | Auction state machine and round-based bidding | Implemented and automatically verified; Studio play test pending |
 | Phase 4+ | NPC bidders, winner resolution, reveal, collection, income | Not started |
 
 ## Implemented features
@@ -60,27 +60,44 @@ Only the foundation and lot-generation portions of this loop are currently imple
 - Client-safe preview generation that redacts hidden identities and true total value.
 - Complete server-only debug output for Studio testing.
 - Deterministic Lune harness for repeatable local verification.
+- Explicit `IDLE → PREVIEW → BIDDING → RESOLVING` auction state machine.
+- Three configured bidding rounds with server-calculated `RAISE +50` and `PASS`.
+- Server-side budget validation and rejection of client-submitted prices or payloads.
+- Native Roblox auction UI with eight lot slots and phase-specific controls.
 
 ## Architecture
 
 ```text
 src/
 ├── client/
+│   ├── AuctionController.client.lua
 │   └── README.md
 ├── shared/
 │   ├── AuctionConfig.lua
+│   ├── AuctionPresentation.lua
 │   ├── Collectibles.lua
 │   ├── EconomyConfig.lua
 │   ├── LotGenerator.lua
 │   ├── Rarities.lua
 │   └── Types.lua
 └── server/
+    ├── AuctionRemoteHandler.lua
+    ├── AuctionRuntime.server.lua
+    ├── AuctionService.lua
+    ├── AuctionStateMachine.lua
     ├── Bootstrap.server.lua
     ├── LotDebug.server.lua
     ├── LotDebugFormatter.lua
     └── PlayerSession.lua
 
 tests/
+├── auction_presentation.spec.luau
+├── auction_remote_handler.spec.luau
+├── auction_service.spec.luau
+├── auction_state_machine_config.spec.luau
+├── auction_state_machine_rounds.spec.luau
+├── auction_state_machine_start.spec.luau
+├── auction_state_machine_validation.spec.luau
 ├── lot_debug_formatter.spec.luau
 ├── lot_generator.spec.luau
 └── player_session.spec.luau
@@ -107,7 +124,7 @@ scripts/
 - animation;
 - camera and local effects.
 
-No Phase 1–2 remote handler accepts client-controlled economic data.
+The Phase 3 remote accepts only action names. Raise values and player budgets are derived and validated on the server; arbitrary payloads are rejected.
 
 ## Toolchain
 
@@ -156,7 +173,7 @@ localhost:34872
 4. Connect to `localhost:34872`.
 5. Start a server play test.
 
-### 4. Verify Phase 1–2
+### 4. Verify Phase 1–3
 
 In Explorer, check:
 
@@ -196,12 +213,19 @@ The corresponding server-only data contained all eight items and a true value of
 
 ## Automated verification
 
-Run all Phase 1–2 checks:
+Run all current behavior checks:
 
 ```bash
 lune run tests/player_session.spec.luau
 lune run tests/lot_generator.spec.luau
 lune run tests/lot_debug_formatter.spec.luau
+lune run tests/auction_state_machine_start.spec.luau
+lune run tests/auction_state_machine_rounds.spec.luau
+lune run tests/auction_state_machine_validation.spec.luau
+lune run tests/auction_service.spec.luau
+lune run tests/auction_remote_handler.spec.luau
+lune run tests/auction_presentation.spec.luau
+lune run tests/auction_state_machine_config.spec.luau
 selene src
 selene --config selene-lune.toml tests scripts
 stylua --check src tests scripts
@@ -212,7 +236,7 @@ lune run scripts/generate-example-lot.luau
 Expected result:
 
 ```text
-3 behavior specs pass
+10 behavior specs pass
 Selene reports 0 errors and 0 warnings
 StyLua check passes
 Rojo build succeeds
@@ -226,7 +250,7 @@ Balancing values are kept outside gameplay logic:
 | File | Responsibility |
 |---|---|
 | `src/shared/EconomyConfig.lua` | Starting Coins |
-| `src/shared/AuctionConfig.lua` | Lot size, visible count, bid calculation, debug seed |
+| `src/shared/AuctionConfig.lua` | Lot size, visible count, bid calculation, rounds, raise increment, debug seed |
 | `src/shared/Rarities.lua` | Rarity names and weights |
 | `src/shared/Collectibles.lua` | Item names, rarity, value, income, category |
 
@@ -256,20 +280,23 @@ The prototype intentionally avoids:
 
 Roblox Studio remains responsible for the map, placeholder models, UI preview, and play testing. The filesystem remains responsible for scripts and configuration.
 
-## Next milestone: Phase 3
+## Phase 3 Studio checklist
 
-Phase 3 will add only:
+1. Start a play test and verify the auction panel appears.
+2. Select **Start Auction** and confirm an eight-slot preview with three visible entries.
+3. Select **Start Bidding** and confirm `Round 1 / 3`.
+4. Use any sequence of **Raise +50** and **Pass** for three rounds.
+5. Confirm each accepted action advances exactly one round.
+6. Confirm a raise changes the server-owned bid by exactly 50 Coins and a pass leaves it unchanged.
+7. Confirm the final action enters `RESOLVING` and disables bidding controls.
+8. Confirm no hidden identity or true lot value appears in client UI or client-visible state.
 
-- explicit auction state machine;
-- `IDLE → PREVIEW → BIDDING → RESOLVING` transitions required by the phase;
-- auction start action;
-- configurable three-round progression;
-- client-safe auction state payloads;
-- server validation for future `RAISE` and `PASS` requests.
+## Next milestone: Phase 4
 
-NPC bidder personalities remain Phase 4 and must not be pulled into Phase 3 prematurely.
+After the Phase 3 Studio checklist passes, Phase 4 adds the Scholar, Merchant, and Collector bidder personalities. Winner resolution remains Phase 5.
 
 ## Documentation
 
 - [`docs/PHASE-1-2.md`](docs/PHASE-1-2.md) — implementation report, verification evidence, generated lots, and known tooling notes.
+- [`docs/PHASE-3.md`](docs/PHASE-3.md) — state machine, remote protocol, security boundaries, and Studio checklist.
 - The original development brief is kept as a local Hermes attachment and is intentionally excluded from Git.
